@@ -51,6 +51,11 @@ SIGNER_FOR_URI_SCHEME[SigstoreSigner.SCHEME] = SigstoreSigner
 
 TAG_KEYOWNER = "x-tuf-on-ci-keyowner"
 TAG_ONLINE_URI = "x-tuf-on-ci-online-uri"
+TAG_EXPIRY_PERIOD = "x-tuf-on-ci-expiry-period"
+TAG_SIGNING_PERIOD = "x-tuf-on-ci-signing-period"
+# Hour-based fields for timestamp (allows sub-day precision)
+TAG_EXPIRY_PERIOD_HOURS = "x-tuf-on-ci-expiry-period-hours"
+TAG_SIGNING_PERIOD_HOURS = "x-tuf-on-ci-signing-period-hours"
 
 
 @unique
@@ -64,11 +69,12 @@ class SignerState(Enum):
 @dataclass
 class OnlineConfig:
     # key is used as signing key for both snapshot and timestamp
+    # timestamp uses hours, snapshot uses days
     key: Key
-    timestamp_expiry: int
-    timestamp_signing: int
-    snapshot_expiry: int
-    snapshot_signing: int
+    timestamp_expiry: int  # hours
+    timestamp_signing: int  # hours
+    snapshot_expiry: int  # days
+    snapshot_signing: int  # days
 
 
 @dataclass
@@ -417,19 +423,25 @@ class SignerRepository(Repository):
 
         timestamp_role = root.get_delegated_role("timestamp")
         snapshot_role = root.get_delegated_role("snapshot")
-        timestamp_expiry = timestamp_role.unrecognized_fields[
-            "x-tuf-on-ci-expiry-period"
-        ]
-        timestamp_signing = timestamp_role.unrecognized_fields.get(
-            "x-tuf-on-ci-signing-period"
-        )
-        snapshot_expiry = snapshot_role.unrecognized_fields["x-tuf-on-ci-expiry-period"]
-        snapshot_signing = snapshot_role.unrecognized_fields.get(
-            "x-tuf-on-ci-signing-period"
-        )
 
+        # Timestamp: check for new hour-based fields, fall back to legacy day fields
+        if TAG_EXPIRY_PERIOD_HOURS in timestamp_role.unrecognized_fields:
+            timestamp_expiry = timestamp_role.unrecognized_fields[TAG_EXPIRY_PERIOD_HOURS]
+            timestamp_signing = timestamp_role.unrecognized_fields.get(
+                TAG_SIGNING_PERIOD_HOURS
+            )
+        else:
+            # Legacy: convert days to hours for display/editing
+            timestamp_expiry = timestamp_role.unrecognized_fields[TAG_EXPIRY_PERIOD] * 24
+            timestamp_signing = timestamp_role.unrecognized_fields.get(TAG_SIGNING_PERIOD)
+            if timestamp_signing is not None:
+                timestamp_signing = timestamp_signing * 24
         if timestamp_signing is None:
             timestamp_signing = timestamp_expiry // 2
+
+        # Snapshot: use days fields
+        snapshot_expiry = snapshot_role.unrecognized_fields[TAG_EXPIRY_PERIOD]
+        snapshot_signing = snapshot_role.unrecognized_fields.get(TAG_SIGNING_PERIOD)
         if snapshot_signing is None:
             snapshot_signing = snapshot_expiry // 2
 
@@ -457,17 +469,22 @@ class SignerRepository(Repository):
             root.add_key(online_config.key, "timestamp")
             root.add_key(online_config.key, "snapshot")
 
-            # set online role periods
-            timestamp.unrecognized_fields["x-tuf-on-ci-expiry-period"] = (
+            # Set timestamp periods using new hour-based fields
+            timestamp.unrecognized_fields[TAG_EXPIRY_PERIOD_HOURS] = (
                 online_config.timestamp_expiry
             )
-            timestamp.unrecognized_fields["x-tuf-on-ci-signing-period"] = (
+            timestamp.unrecognized_fields[TAG_SIGNING_PERIOD_HOURS] = (
                 online_config.timestamp_signing
             )
-            snapshot.unrecognized_fields["x-tuf-on-ci-expiry-period"] = (
+            # Remove legacy day-based fields for timestamp if present
+            timestamp.unrecognized_fields.pop(TAG_EXPIRY_PERIOD, None)
+            timestamp.unrecognized_fields.pop(TAG_SIGNING_PERIOD, None)
+
+            # Snapshot: use day-based fields
+            snapshot.unrecognized_fields[TAG_EXPIRY_PERIOD] = (
                 online_config.snapshot_expiry
             )
-            snapshot.unrecognized_fields["x-tuf-on-ci-signing-period"] = (
+            snapshot.unrecognized_fields[TAG_SIGNING_PERIOD] = (
                 online_config.snapshot_signing
             )
 

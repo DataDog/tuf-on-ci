@@ -28,7 +28,7 @@ ONLINE_URI_KEY = "x-tuf-on-ci-online-uri"
 KEYOWNER_KEY = "x-tuf-on-ci-keyowner"
 
 
-def _update_expiry(obj: Signed | Role, import_data: dict[str, int]):
+def _update_expiry(obj: Signed | Role, import_data: dict[str, float]):
     if EXPIRY_KEY in import_data and import_data[EXPIRY_KEY] != -1:
         expiry = import_data[EXPIRY_KEY]
     elif EXPIRY_KEY in obj.unrecognized_fields:
@@ -48,7 +48,7 @@ def _update_expiry(obj: Signed | Role, import_data: dict[str, int]):
     return True
 
 
-def _update_signing(obj: Signed | Role, import_data: dict[str, int]):
+def _update_signing(obj: Signed | Role, import_data: dict[str, float]):
     if SIGNING_KEY in import_data and import_data[SIGNING_KEY] != -1:
         signing = import_data[SIGNING_KEY]
     elif SIGNING_KEY in obj.unrecognized_fields:
@@ -57,7 +57,7 @@ def _update_signing(obj: Signed | Role, import_data: dict[str, int]):
         signing = obj.unrecognized_fields["x-playground-signing-period"]
     elif "x-playground-expiry-period" in obj.unrecognized_fields:
         # signing-period was not required at some point
-        signing = obj.unrecognized_fields["x-playground-expiry-period"] // 2
+        signing = obj.unrecognized_fields["x-playground-expiry-period"] / 2
     else:
         # let user know this is needed
         import_data[SIGNING_KEY] = -1

@@ -168,8 +168,8 @@ def _get_online_input(config: OnlineConfig, user_config: User) -> OnlineConfig:
         keyuri = config.key.unrecognized_fields[TAG_ONLINE_URI]
         click.echo(f" 1. Configure online key: {keyuri}")
         click.echo(
-            f" 2. Configure timestamp: Expires in {config.timestamp_expiry} days,"
-            f" re-signing starts {config.timestamp_signing} days before expiry"
+            f" 2. Configure timestamp: Expires in {config.timestamp_expiry} hours,"
+            f" re-signing starts {config.timestamp_signing} hours before expiry"
         )
         click.echo(
             f" 3. Configure snapshot: Expires in {config.snapshot_expiry} days, "
@@ -187,12 +187,12 @@ def _get_online_input(config: OnlineConfig, user_config: User) -> OnlineConfig:
             config.key = _collect_online_key(user_config)
         if choice == 2:
             config.timestamp_expiry = click.prompt(
-                bold("Please enter timestamp expiry in days"),
+                bold("Please enter timestamp expiry in hours"),
                 type=int,
                 default=config.timestamp_expiry,
             )
             config.timestamp_signing = click.prompt(
-                bold("Please enter timestamp signing period in days"),
+                bold("Please enter timestamp signing period in hours"),
                 type=int,
                 default=config.timestamp_signing,
             )
@@ -310,9 +310,10 @@ def _init_repository(repo: SignerRepository) -> bool:
     targets_config, _ = _get_offline_input("targets", deepcopy(root_config))
 
     # As default we offer sigstore online key(s)
+    # timestamp defaults: 48 hours expiry, 24 hours signing (equivalent to old 2/1 days)
     keys = _sigstore_import(repo.user.pull_remote)
     default_config = OnlineConfig(
-        keys, 2, 1, root_config.expiry_period, root_config.signing_period
+        keys, 48, 24, root_config.expiry_period, root_config.signing_period
     )
     online_config = _get_online_input(default_config, repo.user)
 
