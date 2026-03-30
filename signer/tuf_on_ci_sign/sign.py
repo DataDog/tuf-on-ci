@@ -24,8 +24,14 @@ logger = logging.getLogger(__name__)
 @click.version_option()
 @click.option("-v", "--verbose", count=True, default=0)
 @click.option("--push/--no-push", default=True)
+@click.option(
+    "--offline-sign-timestamp-snapshot",
+    is_flag=True,
+    default=False,
+    help="Also sign snapshot and timestamp with offline key (for emergency use when CI is down).",
+)
 @click.argument("event-name", metavar="signing-event")
-def sign(verbose: int, push: bool, event_name: str):
+def sign(verbose: int, push: bool, offline_sign_timestamp_snapshot: bool, event_name: str):
     """Signing tool for TUF-on-CI signing events."""
     logging.basicConfig(level=logging.WARNING - verbose * 10)
 
@@ -71,8 +77,15 @@ def sign(verbose: int, push: bool, event_name: str):
         if change_status:
             git_expect(["add", "metadata"])
             git_expect(["commit", "-m", change_status, "--signoff"])
+
+        if offline_sign_timestamp_snapshot:
+            repo.offline_sign_online_roles()
+            git_expect(["add", "metadata"])
+            git_expect(["commit", "-m", "Offline sign (snapshot & timestamp)", "--signoff"])
+
+        if change_status or offline_sign_timestamp_snapshot:
             if push:
-                push_changes(user_config, event_name, change_status)
+                push_changes(user_config, event_name, change_status or "Offline sign")
             else:
                 # TODO: maybe deal with existing branch?
                 click.echo(f"Creating local branch {event_name}")
