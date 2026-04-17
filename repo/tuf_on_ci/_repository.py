@@ -252,9 +252,11 @@ class CIRepository(Repository):
         md.signatures.clear()
         for key in self._get_keys(rolename):
             if rolename in ["timestamp", "snapshot"]:
-                uri = key.unrecognized_fields[TAG_ONLINE_URI]
-                signer = Signer.from_priv_key_uri(uri, key)
-                md.sign(signer, True)
+                if TAG_ONLINE_URI in key.unrecognized_fields:
+                    uri = key.unrecognized_fields[TAG_ONLINE_URI]
+                    signer = Signer.from_priv_key_uri(uri, key)
+                    md.sign(signer, True)
+                # else: offline key, skip during online signing
             else:
                 # offline signer, add empty sig
                 md.signatures[key.keyid] = Signature(key.keyid, "")

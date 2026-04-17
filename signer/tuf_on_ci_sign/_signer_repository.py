@@ -32,11 +32,14 @@ from tuf.api.metadata import (
     DelegatedRole,
     Delegations,
     Key,
+    MetaFile,
     Metadata,
     Role,
     Root,
     Signed,
+    Snapshot,
     Targets,
+    Timestamp,
 )
 from tuf.api.serialization.json import CanonicalJSONSerializer, JSONSerializer
 from tuf.repository import AbortEdit, Repository
@@ -841,6 +844,78 @@ class SignerRepository(Repository):
         for key in signing_keys.values():
             self._sign(rolename, md, key)
         self._write(rolename, md)
+
+    def offline_sign_online_roles(self) -> None:
+        """Update and sign snapshot and timestamp with offline key (Yubikey).
+
+        Used for emergency signing when CI (and the online KMS key) is
+        unavailable.  The caller's key must be listed in the snapshot and
+        timestamp role delegations inside root.json.
+        """
+        root = self.root()
+
+        # --- find the user's offline key for snapshot/timestamp ---
+        snapshot_role = root.get_delegated_role("snapshot")
+        signing_key: Key | None = None
+        for keyid in snapshot_role.keyids:
+            key = root.get_key(keyid)
+            owner = key.unrecognized_fields.get(TAG_KEYOWNER)
+            if owner == self.user.name:
+                signing_key = key
+                break
+        if signing_key is None:
+            raise click.ClickException(
+                f"No offline key for {self.user.name} in snapshot/timestamp roles"
+            )
+
+        # --- gather current targets versions for snapshot meta ---
+        targets_md = self.open("targets")
+        meta: dict[str, MetaFile] = {
+            "targets.json": MetaFile(targets_md.signed.version),
+        }
+        if isinstance(targets_md.signed, Targets) and targets_md.signed.delegations:
+            if targets_md.signed.delegations.roles:
+                for delegated_role in targets_md.signed.delegations.roles.values():
+                    fname = f"{delegated_role.name}.json"
+                    delegated_md = self.open(delegated_role.name)
+                    meta[fname] = MetaFile(delegated_md.signed.version)
+
+        # --- update and sign snapshot ---
+        snapshot_md = self.open("snapshot")
+        assert isinstance(snapshot_md.signed, Snapshot)
+        snapshot_md.signed.version += 1
+        snapshot_md.signed.meta = meta
+
+        sn_role = root.get_delegated_role("snapshot")
+        sn_expiry = sn_role.unrecognized_fields[TAG_EXPIRY_PERIOD]
+        snapshot_md.signed.expires = datetime.now(timezone.utc) + timedelta(
+            days=sn_expiry
+        )
+
+        snapshot_md.signatures.clear()
+        self._sign("snapshot", snapshot_md, signing_key)
+        self._write("snapshot", snapshot_md)
+
+        # --- update and sign timestamp ---
+        timestamp_md = self.open("timestamp")
+        assert isinstance(timestamp_md.signed, Timestamp)
+        timestamp_md.signed.version += 1
+        timestamp_md.signed.snapshot_meta = MetaFile(snapshot_md.signed.version)
+
+        ts_role = root.get_delegated_role("timestamp")
+        if TAG_EXPIRY_PERIOD_HOURS in ts_role.unrecognized_fields:
+            hours = ts_role.unrecognized_fields[TAG_EXPIRY_PERIOD_HOURS]
+            ts_expiry = timedelta(hours=hours)
+        else:
+            days = ts_role.unrecognized_fields[TAG_EXPIRY_PERIOD]
+            ts_expiry = timedelta(days=days)
+        timestamp_md.signed.expires = datetime.now(timezone.utc) + ts_expiry
+
+        timestamp_md.signatures.clear()
+        self._sign("timestamp", timestamp_md, signing_key)
+        self._write("timestamp", timestamp_md)
+
+        click.echo("Snapshot and timestamp signed offline successfully.")
 
     def force_compliant_keyids(self, rolename: str) -> bool:
         """Make all keyids defined in rolename spec compliant
