@@ -38,6 +38,11 @@ SIGNER_FOR_URI_SCHEME[SigstoreSigner.SCHEME] = SigstoreSigner
 
 TAG_KEYOWNER = "x-tuf-on-ci-keyowner"
 TAG_ONLINE_URI = "x-tuf-on-ci-online-uri"
+TAG_EXPIRY_PERIOD = "x-tuf-on-ci-expiry-period"
+TAG_SIGNING_PERIOD = "x-tuf-on-ci-signing-period"
+# Hour-based fields for timestamp (allows sub-day precision)
+TAG_EXPIRY_PERIOD_HOURS = "x-tuf-on-ci-expiry-period-hours"
+TAG_SIGNING_PERIOD_HOURS = "x-tuf-on-ci-signing-period-hours"
 
 # TODO Add a metadata cache so we don't constantly open files
 # TODO; Signing status probably should include an error message when valid=False
@@ -184,22 +189,40 @@ class CIRepository(Repository):
 
         return md
 
-    def signing_expiry_period(self, rolename: str) -> tuple[int, int]:
+    def signing_expiry_period(self, rolename: str) -> tuple[float, float]:
         """Extracts the signing and expiry period for a role
 
         If no signing expiry is configured, half the expiry period is used.
+        Timestamp can use hour-based fields (new) or day-based fields (legacy).
         """
-        if rolename in ["timestamp", "snapshot"]:
+        if rolename == "timestamp":
             role = self.root().get_delegated_role(rolename)
-            expiry_days = role.unrecognized_fields["x-tuf-on-ci-expiry-period"]
-            signing_days = role.unrecognized_fields.get("x-tuf-on-ci-signing-period")
+            # Check for new hour-based fields first, fall back to legacy day fields
+            if TAG_EXPIRY_PERIOD_HOURS in role.unrecognized_fields:
+                expiry_hours = role.unrecognized_fields[TAG_EXPIRY_PERIOD_HOURS]
+                signing_hours = role.unrecognized_fields.get(TAG_SIGNING_PERIOD_HOURS)
+                if signing_hours is None:
+                    signing_hours = expiry_hours / 2
+                expiry_days = expiry_hours / 24
+                signing_days = signing_hours / 24
+            else:
+                # Legacy: fields are in days
+                expiry_days = role.unrecognized_fields[TAG_EXPIRY_PERIOD]
+                signing_days = role.unrecognized_fields.get(TAG_SIGNING_PERIOD)
+                if signing_days is None:
+                    signing_days = expiry_days / 2
+        elif rolename == "snapshot":
+            role = self.root().get_delegated_role(rolename)
+            expiry_days = role.unrecognized_fields[TAG_EXPIRY_PERIOD]
+            signing_days = role.unrecognized_fields.get(TAG_SIGNING_PERIOD)
+            if signing_days is None:
+                signing_days = expiry_days / 2
         else:
             signed = self.root() if rolename == "root" else self.targets(rolename)
-            expiry_days = signed.unrecognized_fields["x-tuf-on-ci-expiry-period"]
-            signing_days = signed.unrecognized_fields.get("x-tuf-on-ci-signing-period")
-
-        if signing_days is None:
-            signing_days = expiry_days // 2
+            expiry_days = signed.unrecognized_fields[TAG_EXPIRY_PERIOD]
+            signing_days = signed.unrecognized_fields.get(TAG_SIGNING_PERIOD)
+            if signing_days is None:
+                signing_days = expiry_days / 2
 
         return (signing_days, expiry_days)
 
@@ -358,11 +381,21 @@ class CIRepository(Repository):
                 return False, "Timestamp and Snapshot signers differ"
 
             # Check expiry and signing period sanity
-            for role in [ts_role, sn_role]:
-                expiry_days = role.unrecognized_fields["x-tuf-on-ci-expiry-period"]
-                signing_days = role.unrecognized_fields["x-tuf-on-ci-signing-period"]
-                if signing_days < 1 or expiry_days <= signing_days:
-                    return False, "Online signing or expiry period failed sanity check"
+            # Timestamp: check for hour-based fields first, fall back to legacy day fields
+            if TAG_EXPIRY_PERIOD_HOURS in ts_role.unrecognized_fields:
+                ts_expiry = ts_role.unrecognized_fields[TAG_EXPIRY_PERIOD_HOURS]
+                ts_signing = ts_role.unrecognized_fields.get(TAG_SIGNING_PERIOD_HOURS, 0)
+            else:
+                ts_expiry = ts_role.unrecognized_fields[TAG_EXPIRY_PERIOD]
+                ts_signing = ts_role.unrecognized_fields.get(TAG_SIGNING_PERIOD, 0)
+            if ts_signing <= 0 or ts_expiry <= ts_signing:
+                return False, "Timestamp signing or expiry period failed sanity check"
+
+            # Snapshot: always uses day-based fields
+            sn_expiry = sn_role.unrecognized_fields[TAG_EXPIRY_PERIOD]
+            sn_signing = sn_role.unrecognized_fields.get(TAG_SIGNING_PERIOD, 0)
+            if sn_signing <= 0 or sn_expiry <= sn_signing:
+                return False, "Snapshot signing or expiry period failed sanity check"
 
             for key in md.signed.keys.values():
                 canonical_key = encode_canonical(key.to_dict())
