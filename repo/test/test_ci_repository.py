@@ -12,33 +12,20 @@ class TestCIRepository(unittest.TestCase):
         repo = CIRepository("no_such_file")
         self.assertRaises(ValueError, repo.open, "root")
 
-    def test_signing_expiry_days_root(self):
-        repo = CIRepository("test/test_repo1")
+    def test_signing_expiry_periods(self):
+        cases = [
+            ("test/test_repo1", "root", 60, 365),
+            ("test/test_repo1", "targets", 40, 123),
+            ("test/test_repo2", "timestamp", 6, 40),
+            ("test/test_repo1", "timestamp", 2, 4),
+        ]
 
-        signing_days, expiry_days = repo.signing_expiry_period("root")
-        self.assertEqual(signing_days, 60)
-        self.assertEqual(expiry_days, 365)
-
-    def test_signing_expiry_days_targets(self):
-        repo = CIRepository("test/test_repo1")
-
-        signing_days, expiry_days = repo.signing_expiry_period("targets")
-        self.assertEqual(signing_days, 40)
-        self.assertEqual(expiry_days, 123)
-
-    def test_signing_expiry_days_role(self):
-        repo = CIRepository("test/test_repo2")
-
-        signing_days, expiry_days = repo.signing_expiry_period("timestamp")
-        self.assertEqual(signing_days, 6)
-        self.assertEqual(expiry_days, 40)
-
-    def test_default_signing_days(self):
-        repo = CIRepository("test/test_repo1")
-
-        signing_days, expiry_days = repo.signing_expiry_period("timestamp")
-        self.assertEqual(signing_days, 2)
-        self.assertEqual(expiry_days, 4)
+        for repo_path, role, expected_signing_days, expected_expiry_days in cases:
+            with self.subTest(repo_path=repo_path, role=role):
+                repo = CIRepository(repo_path)
+                signing_days, expiry_days = repo.signing_expiry_period(role)
+                self.assertEqual(signing_days, expected_signing_days)
+                self.assertEqual(expiry_days, expected_expiry_days)
 
     # def test_bump_expires_expired(self):
     #     repo = CIRepository("test/test_repo1")
