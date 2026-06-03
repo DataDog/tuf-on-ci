@@ -91,6 +91,8 @@ repo_setup()
     git_repo add .dummy
     git_repo commit -m "init" --quiet
     git_repo push --quiet
+    git_repo branch not-main
+    git_repo push --quiet origin not-main
 }
 
 signer_setup()
