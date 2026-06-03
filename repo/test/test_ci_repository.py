@@ -128,23 +128,23 @@ class TestCIRepository(unittest.TestCase):
             shutil.copytree(good_meta, temp_meta, dirs_exist_ok=True)
             repo = CIRepository(temp_meta, good_meta, recursive_targets=True)
 
-            nested_dir = os.path.join(temp_targets, "pkg")
+            nested_dir = os.path.join(temp_targets, "nested")
             os.makedirs(nested_dir)
-            with open(os.path.join(nested_dir, "1.0.0.json"), "w") as f:
-                f.write("{}")
+            with open(os.path.join(nested_dir, "target.txt"), "w") as f:
+                f.write("target")
 
             repo.update_targets("targets")
             targets = repo.targets("targets")
-            self.assertIn("pkg/1.0.0.json", targets.targets)
+            self.assertIn("nested/target.txt", targets.targets)
 
     def test_recursive_changed_target_roles_detects_nested_top_level_targets(self):
         repo_path = "test/test_repo3"
         good_meta = os.path.join(repo_path, "good/metadata")
         with TemporaryDirectory("_tuf_on_ci") as temp_dir:
             temp_targets = os.path.join(temp_dir, "targets")
-            os.makedirs(os.path.join(temp_targets, "pkg"))
-            with open(os.path.join(temp_targets, "pkg", "1.0.0.json"), "w") as f:
-                f.write("{}")
+            os.makedirs(os.path.join(temp_targets, "nested"))
+            with open(os.path.join(temp_targets, "nested", "target.txt"), "w") as f:
+                f.write("target")
 
             repo = CIRepository(good_meta, good_meta, recursive_targets=True)
             roles = _find_changed_target_roles(
