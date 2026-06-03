@@ -50,12 +50,16 @@ def _find_changed_roles(known_good_dir: str, signing_event_dir: str) -> set[str]
 
 
 def _find_changed_target_roles(
-    repo: CIRepository, known_good_targets_dir: str, targets_dir: str
+    repo: CIRepository,
+    known_good_targets_dir: str,
+    targets_dir: str,
+    *,
+    recursive_targets: bool = False,
 ) -> set[str]:
     """Compare two artifact directories, return rolenames that have artifacts changes"""
 
     files = []
-    patterns = ["*"]
+    patterns = ["**/*"] if recursive_targets else ["*"]
     delegations = repo.targets("targets").delegations
     if delegations and delegations.roles:
         for role in delegations.roles:
@@ -63,8 +67,8 @@ def _find_changed_target_roles(
             if paths:
                 patterns.extend(paths)
     for pattern in patterns:
-        files += glob(pattern, root_dir=targets_dir)
-        files += glob(pattern, root_dir=known_good_targets_dir)
+        files += glob(pattern, root_dir=targets_dir, recursive=True)
+        files += glob(pattern, root_dir=known_good_targets_dir, recursive=True)
 
     changed_roles = set()
     for filepath in files:
@@ -86,9 +90,12 @@ def _find_changed_target_roles(
             pass
 
         # found a changed artifact, add rolename to set. "targets" is a special case
-        rolename, slash, _ = filepath.partition("/")
-        if not slash:
+        if recursive_targets:
             rolename = "targets"
+        else:
+            rolename, slash, _ = filepath.partition("/")
+            if not slash:
+                rolename = "targets"
         changed_roles.add(rolename)
 
     return changed_roles
@@ -155,7 +162,12 @@ def _role_status(repo: CIRepository, role: str, event_name) -> bool:
 @click.command()  # type: ignore[arg-type]
 @click.option("-v", "--verbose", count=True, default=0)
 @click.option("--push/--no-push", default=True)
-def update_targets(verbose: int, push: bool) -> None:
+@click.option(
+    "--recursive-targets/--no-recursive-targets",
+    default=False,
+    help="Recursively include files below targets/ in the top-level targets role.",
+)
+def update_targets(verbose: int, push: bool, recursive_targets: bool) -> None:
     """Tool to update targets metadata based on artifact changes
 
     Compares artifacts to known good state. For all changed artifacts, makes
@@ -187,8 +199,15 @@ def update_targets(verbose: int, push: bool) -> None:
 
         # Find artifacts that have changed in this signing event
         # Update targets metadata for those artifacts if needed.
-        repo = CIRepository("metadata", good_metadata)
-        roles = _find_changed_target_roles(repo, good_targets, "targets")
+        repo = CIRepository(
+            "metadata", good_metadata, recursive_targets=recursive_targets
+        )
+        roles = _find_changed_target_roles(
+            repo,
+            good_targets,
+            "targets",
+            recursive_targets=recursive_targets,
+        )
 
         # Update targets metadata if necessary
         updated_targets = []

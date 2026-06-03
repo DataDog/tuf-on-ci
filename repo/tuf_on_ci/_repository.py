@@ -121,9 +121,16 @@ class CIRepository(Repository):
         prev_dir: optional known good repository directory
     """
 
-    def __init__(self, dir: str, prev_dir: str | None = None):
+    def __init__(
+        self,
+        dir: str,
+        prev_dir: str | None = None,
+        *,
+        recursive_targets: bool = False,
+    ):
         self._dir = dir
         self._prev_dir = prev_dir
+        self._recursive_targets = recursive_targets
 
         # read signing event state file
         self.state = SigningEventState(os.path.join(self._dir, ".signing-event-state"))
@@ -383,10 +390,13 @@ class CIRepository(Repository):
                 return False, "Timestamp and Snapshot signers differ"
 
             # Check expiry and signing period sanity
-            # Timestamp: check for hour-based fields first, fall back to legacy day fields
+            # Timestamp: check for hour-based fields first, then fall back to
+            # legacy day fields.
             if TAG_EXPIRY_PERIOD_HOURS in ts_role.unrecognized_fields:
                 ts_expiry = ts_role.unrecognized_fields[TAG_EXPIRY_PERIOD_HOURS]
-                ts_signing = ts_role.unrecognized_fields.get(TAG_SIGNING_PERIOD_HOURS, 0)
+                ts_signing = ts_role.unrecognized_fields.get(
+                    TAG_SIGNING_PERIOD_HOURS, 0
+                )
             else:
                 ts_expiry = ts_role.unrecognized_fields[TAG_EXPIRY_PERIOD]
                 ts_signing = ts_role.unrecognized_fields.get(TAG_SIGNING_PERIOD, 0)
@@ -429,7 +439,9 @@ class CIRepository(Repository):
         """Build a roles dict of TargetFile based on target files in a directory"""
         targetfiles = {}
 
-        patterns = ["*"]
+        patterns = (
+            ["**/*"] if self._recursive_targets and rolename == "targets" else ["*"]
+        )
 
         if rolename != "targets":
             delegations = self.targets("targets").delegations
@@ -439,7 +451,7 @@ class CIRepository(Repository):
                     patterns = paths
 
         for pattern in patterns:
-            for fname in glob(pattern, root_dir=target_dir):
+            for fname in glob(pattern, root_dir=target_dir, recursive=True):
                 realpath = os.path.join(target_dir, fname)
                 if not os.path.isfile(realpath):
                     continue

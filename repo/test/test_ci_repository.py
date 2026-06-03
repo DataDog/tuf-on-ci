@@ -117,6 +117,53 @@ class TestCIRepository(unittest.TestCase):
                 roles, {"myrole", "targets", "oldrole"}, "unexpect roles found"
             )
 
+    def test_recursive_top_level_targets_loading(self):
+        repo_path = "test/test_repo3"
+        good_meta = os.path.join(repo_path, "good/metadata")
+        with TemporaryDirectory("_tuf_on_ci") as temp_dir:
+            temp_meta = os.path.join(temp_dir, "metadata")
+            temp_targets = os.path.join(temp_dir, "targets")
+            os.makedirs(temp_targets)
+            os.makedirs(temp_meta)
+            shutil.copytree(good_meta, temp_meta, dirs_exist_ok=True)
+            repo = CIRepository(temp_meta, good_meta, recursive_targets=True)
+
+            nested_dir = os.path.join(temp_targets, "pkg")
+            os.makedirs(nested_dir)
+            with open(os.path.join(nested_dir, "1.0.0.json"), "w") as f:
+                f.write("{}")
+
+            repo.update_targets("targets")
+            targets = repo.targets("targets")
+            self.assertIn("pkg/1.0.0.json", targets.targets)
+
+    def test_recursive_changed_target_roles_detects_nested_top_level_targets(self):
+        repo_path = "test/test_repo3"
+        good_meta = os.path.join(repo_path, "good/metadata")
+        with TemporaryDirectory("_tuf_on_ci") as temp_dir:
+            temp_targets = os.path.join(temp_dir, "targets")
+            os.makedirs(os.path.join(temp_targets, "pkg"))
+            with open(os.path.join(temp_targets, "pkg", "1.0.0.json"), "w") as f:
+                f.write("{}")
+
+            repo = CIRepository(good_meta, good_meta, recursive_targets=True)
+            roles = _find_changed_target_roles(
+                repo,
+                os.path.join(temp_dir, "missing"),
+                temp_targets,
+                recursive_targets=True,
+            )
+            self.assertSetEqual(roles, {"targets"})
+
+    def test_signing_event_action_exposes_recursive_targets_input(self):
+        action = os.path.join(
+            os.path.dirname(__file__), "../../actions/signing-event/action.yml"
+        )
+        with open(action) as f:
+            action_yml = f.read()
+        self.assertIn("recursive_targets", action_yml)
+        self.assertIn("--recursive-targets", action_yml)
+
 
 if __name__ == "__main__":
     unittest.main()

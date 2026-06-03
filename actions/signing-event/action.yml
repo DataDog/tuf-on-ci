@@ -20,6 +20,10 @@ inputs:
   token:
     description: 'GitHub token'
     required: true
+  recursive_targets:
+    description: 'Recursively include files below targets/ in the top-level targets role'
+    required: false
+    default: 'false'
 
 runs:
   using: "composite"
@@ -42,8 +46,14 @@ runs:
       shell: bash
 
     - id: update_targets
+      env:
+        RECURSIVE_TARGETS: ${{ inputs.recursive_targets }}
       run: |
-        if tuf-on-ci-update-targets >> update-output;  then
+        recursive_targets=()
+        if [[ "$RECURSIVE_TARGETS" == "true" ]]; then
+          recursive_targets=(--recursive-targets)
+        fi
+        if tuf-on-ci-update-targets "${recursive_targets[@]}" >> update-output;  then
           echo "targets_updated=true" >> $GITHUB_OUTPUT
         else
           echo "targets_updated=false" >> $GITHUB_OUTPUT
