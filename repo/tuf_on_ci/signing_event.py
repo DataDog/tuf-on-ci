@@ -60,8 +60,10 @@ def _find_changed_target_roles(
 
     files = []
     patterns = ["**/*"] if recursive_targets else ["*"]
+    delegated_rolenames = set()
     delegations = repo.targets("targets").delegations
     if delegations and delegations.roles:
+        delegated_rolenames = set(delegations.roles)
         for role in delegations.roles:
             paths = delegations.roles[role].paths
             if paths:
@@ -90,12 +92,12 @@ def _find_changed_target_roles(
             pass
 
         # found a changed artifact, add rolename to set. "targets" is a special case
+        rolename, slash, _ = filepath.partition("/")
         if recursive_targets:
-            rolename = "targets"
-        else:
-            rolename, slash, _ = filepath.partition("/")
-            if not slash:
+            if not slash or rolename not in delegated_rolenames:
                 rolename = "targets"
+        elif not slash:
+            rolename = "targets"
         changed_roles.add(rolename)
 
     return changed_roles

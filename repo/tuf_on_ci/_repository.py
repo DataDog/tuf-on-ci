@@ -442,10 +442,12 @@ class CIRepository(Repository):
         patterns = (
             ["**/*"] if self._recursive_targets and rolename == "targets" else ["*"]
         )
+        delegated_rolenames = set()
 
-        if rolename != "targets":
-            delegations = self.targets("targets").delegations
-            if delegations and delegations.roles and rolename in delegations.roles:
+        delegations = self.targets("targets").delegations
+        if delegations and delegations.roles:
+            delegated_rolenames = set(delegations.roles)
+            if rolename != "targets" and rolename in delegations.roles:
                 paths = delegations.roles[rolename].paths
                 if paths:
                     patterns = paths
@@ -454,6 +456,15 @@ class CIRepository(Repository):
             for fname in glob(pattern, root_dir=target_dir, recursive=True):
                 realpath = os.path.join(target_dir, fname)
                 if not os.path.isfile(realpath):
+                    continue
+
+                dirname, slash, _ = fname.partition("/")
+                if (
+                    self._recursive_targets
+                    and rolename == "targets"
+                    and slash
+                    and dirname in delegated_rolenames
+                ):
                     continue
 
                 targetfiles[fname] = TargetFile.from_file(fname, realpath, ["sha256"])

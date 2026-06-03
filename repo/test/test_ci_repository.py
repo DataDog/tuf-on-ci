@@ -155,6 +155,46 @@ class TestCIRepository(unittest.TestCase):
             )
             self.assertSetEqual(roles, {"targets"})
 
+    def test_recursive_changed_target_roles_uses_first_directory_delegation(self):
+        repo_path = "test/test_repo3"
+        good_meta = os.path.join(repo_path, "good/metadata")
+        with TemporaryDirectory("_tuf_on_ci") as temp_dir:
+            temp_targets = os.path.join(temp_dir, "targets")
+            os.makedirs(os.path.join(temp_targets, "myrole", "nested"))
+            with open(
+                os.path.join(temp_targets, "myrole", "nested", "target.txt"), "w"
+            ) as f:
+                f.write("target")
+
+            repo = CIRepository(good_meta, good_meta, recursive_targets=True)
+            roles = _find_changed_target_roles(
+                repo,
+                os.path.join(temp_dir, "missing"),
+                temp_targets,
+                recursive_targets=True,
+            )
+            self.assertSetEqual(roles, {"myrole"})
+
+    def test_recursive_top_level_targets_skip_delegated_directories(self):
+        repo_path = "test/test_repo3"
+        good_meta = os.path.join(repo_path, "good/metadata")
+        with TemporaryDirectory("_tuf_on_ci") as temp_dir:
+            temp_meta = os.path.join(temp_dir, "metadata")
+            temp_targets = os.path.join(temp_dir, "targets")
+            shutil.copytree(good_meta, temp_meta)
+            os.makedirs(os.path.join(temp_targets, "myrole"))
+            os.makedirs(os.path.join(temp_targets, "nested"))
+            with open(os.path.join(temp_targets, "myrole", "target.txt"), "w") as f:
+                f.write("delegated target")
+            with open(os.path.join(temp_targets, "nested", "target.txt"), "w") as f:
+                f.write("top-level recursive target")
+
+            repo = CIRepository(temp_meta, good_meta, recursive_targets=True)
+            repo.update_targets("targets")
+            targets = repo.targets("targets")
+            self.assertIn("nested/target.txt", targets.targets)
+            self.assertNotIn("myrole/target.txt", targets.targets)
+
     def test_signing_event_action_exposes_recursive_targets_input(self):
         action = os.path.join(
             os.path.dirname(__file__), "../../actions/signing-event/action.yml"
