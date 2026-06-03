@@ -65,8 +65,8 @@
      "cda7a53138556e7c0d1737e4ba32868f3cf287e78ab9366c820115ce11383d34"
     ],
     "threshold": 1,
-    "x-tuf-on-ci-expiry-period": 2,
-    "x-tuf-on-ci-signing-period": 1
+    "x-tuf-on-ci-expiry-period-hours": 48,
+    "x-tuf-on-ci-signing-period-hours": 24
    }
   },
   "spec_version": "1.0.31",

@@ -434,8 +434,8 @@ non_signer_change_online_delegation()
 
     INPUT=(
         "2"                 # Configure online roles? [2: configure timestamp]
-        "5"                 # timestamp expiry in days
-        ""                  # timestamp signing period in days
+        "120"               # timestamp expiry in hours
+        ""                  # timestamp signing period in hours
         ""                  # Configure online roles? [Enter to continue]
         ""                  # press enter to push
     )
@@ -491,6 +491,7 @@ repo_merge()
     tuf-on-ci-status >> $REPO_DIR/out
 
     git_repo push --quiet
+    git_repo push --quiet origin main:not-main
 }
 
 repo_status_fail()
@@ -525,6 +526,7 @@ repo_online_sign()
     else
         echo "generated=false" >> $REPO_DIR/out
     fi
+    git_repo push --quiet origin main:not-main
 }
 
 repo_publish()
