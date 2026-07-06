@@ -32,8 +32,8 @@ from tuf.api.metadata import (
     DelegatedRole,
     Delegations,
     Key,
-    MetaFile,
     Metadata,
+    MetaFile,
     Role,
     Root,
     Signed,
@@ -429,14 +429,20 @@ class SignerRepository(Repository):
 
         # Timestamp: check for new hour-based fields, fall back to legacy day fields
         if TAG_EXPIRY_PERIOD_HOURS in timestamp_role.unrecognized_fields:
-            timestamp_expiry = timestamp_role.unrecognized_fields[TAG_EXPIRY_PERIOD_HOURS]
+            timestamp_expiry = timestamp_role.unrecognized_fields[
+                TAG_EXPIRY_PERIOD_HOURS
+            ]
             timestamp_signing = timestamp_role.unrecognized_fields.get(
                 TAG_SIGNING_PERIOD_HOURS
             )
         else:
             # Legacy: convert days to hours for display/editing
-            timestamp_expiry = timestamp_role.unrecognized_fields[TAG_EXPIRY_PERIOD] * 24
-            timestamp_signing = timestamp_role.unrecognized_fields.get(TAG_SIGNING_PERIOD)
+            timestamp_expiry = (
+                timestamp_role.unrecognized_fields[TAG_EXPIRY_PERIOD] * 24
+            )
+            timestamp_signing = timestamp_role.unrecognized_fields.get(
+                TAG_SIGNING_PERIOD
+            )
             if timestamp_signing is not None:
                 timestamp_signing = timestamp_signing * 24
         if timestamp_signing is None:
@@ -873,12 +879,15 @@ class SignerRepository(Repository):
         meta: dict[str, MetaFile] = {
             "targets.json": MetaFile(targets_md.signed.version),
         }
-        if isinstance(targets_md.signed, Targets) and targets_md.signed.delegations:
-            if targets_md.signed.delegations.roles:
-                for delegated_role in targets_md.signed.delegations.roles.values():
-                    fname = f"{delegated_role.name}.json"
-                    delegated_md = self.open(delegated_role.name)
-                    meta[fname] = MetaFile(delegated_md.signed.version)
+        if (
+            isinstance(targets_md.signed, Targets)
+            and targets_md.signed.delegations
+            and targets_md.signed.delegations.roles
+        ):
+            for delegated_role in targets_md.signed.delegations.roles.values():
+                fname = f"{delegated_role.name}.json"
+                delegated_md = self.open(delegated_role.name)
+                meta[fname] = MetaFile(delegated_md.signed.version)
 
         # --- update and sign snapshot ---
         snapshot_md = self.open("snapshot")

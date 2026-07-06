@@ -61,11 +61,11 @@ class AuthenticatedFetcher(FetcherInterface):
         Raises:
             DownloadHTTPError: If an HTTP error occurs
         """
-        req = request.Request(url)
+        req = request.Request(url)  # noqa: S310
         req.add_header("Authorization", f"Bearer {self.token}")
 
         try:
-            with self.opener.open(req) as response:  # noqa: S310
+            with self.opener.open(req) as response:
                 while True:
                     chunk = response.read(4096)
                     if not chunk:
@@ -136,11 +136,15 @@ def client(
                 if gh_token:
                     # Download with authentication and redirect support
                     opener = request.build_opener(_AuthRedirectHandler())
-                    req = request.Request(root_url)
+                    req = request.Request(root_url)  # noqa: S310
                     req.add_header("Authorization", f"Bearer {gh_token}")
-                    with opener.open(req) as response:  # noqa: S310
-                        with open(f"{metadata_dir}/root.json", "wb") as f:
-                            f.write(response.read())
+                    # Open the response and the output file together, then
+                    # write the downloaded root.json inside the with block.
+                    with (
+                        opener.open(req) as response,
+                        open(f"{metadata_dir}/root.json", "wb") as f,
+                    ):
+                        f.write(response.read())
                 else:
                     # Download without authentication
                     request.urlretrieve(root_url, f"{metadata_dir}/root.json")  # noqa: S310

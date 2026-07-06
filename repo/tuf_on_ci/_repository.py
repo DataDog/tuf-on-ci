@@ -383,10 +383,13 @@ class CIRepository(Repository):
                 return False, "Timestamp and Snapshot signers differ"
 
             # Check expiry and signing period sanity
-            # Timestamp: check for hour-based fields first, fall back to legacy day fields
+            # Timestamp: check for hour-based fields first, fall back to
+            # legacy day fields
             if TAG_EXPIRY_PERIOD_HOURS in ts_role.unrecognized_fields:
                 ts_expiry = ts_role.unrecognized_fields[TAG_EXPIRY_PERIOD_HOURS]
-                ts_signing = ts_role.unrecognized_fields.get(TAG_SIGNING_PERIOD_HOURS, 0)
+                ts_signing = ts_role.unrecognized_fields.get(
+                    TAG_SIGNING_PERIOD_HOURS, 0
+                )
             else:
                 ts_expiry = ts_role.unrecognized_fields[TAG_EXPIRY_PERIOD]
                 ts_signing = ts_role.unrecognized_fields.get(TAG_SIGNING_PERIOD, 0)
