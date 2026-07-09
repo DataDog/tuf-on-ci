@@ -142,9 +142,9 @@ def client(
                     # write the downloaded root.json inside the with block.
                     with (
                         opener.open(req) as response,
-                        open(f"{metadata_dir}/root.json", "wb") as f,
+                        open(f"{metadata_dir}/root.json", "wb") as out,
                     ):
-                        f.write(response.read())
+                        out.write(response.read())
                 else:
                     # Download without authentication
                     request.urlretrieve(root_url, f"{metadata_dir}/root.json")  # noqa: S310
