@@ -45,7 +45,9 @@ def signing_event(name: str, config: User) -> Generator[SignerRepository, None, 
     try:
         # checkout the base of this signing event in another directory
         with TemporaryDirectory() as temp_dir:
-            base_sha = git_expect(["merge-base", f"{config.pull_remote}/not-main", "HEAD"])
+            base_sha = git_expect(
+                ["merge-base", f"{config.pull_remote}/not-main", "HEAD"]
+            )
             event_sha = git_expect(["rev-parse", "HEAD"])
             git_expect(["clone", "--quiet", toplevel, temp_dir])
             git_expect(["-C", temp_dir, "checkout", "--quiet", base_sha])

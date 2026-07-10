@@ -28,10 +28,15 @@ logger = logging.getLogger(__name__)
     "--offline-sign-timestamp-snapshot",
     is_flag=True,
     default=False,
-    help="Also sign snapshot and timestamp with offline key (for emergency use when CI is down).",
+    help=(
+        "Also sign snapshot and timestamp with offline key "
+        "(for emergency use when CI is down)."
+    ),
 )
 @click.argument("event-name", metavar="signing-event")
-def sign(verbose: int, push: bool, offline_sign_timestamp_snapshot: bool, event_name: str):
+def sign(
+    verbose: int, push: bool, offline_sign_timestamp_snapshot: bool, event_name: str
+):
     """Signing tool for TUF-on-CI signing events."""
     logging.basicConfig(level=logging.WARNING - verbose * 10)
 
@@ -81,7 +86,9 @@ def sign(verbose: int, push: bool, offline_sign_timestamp_snapshot: bool, event_
         if offline_sign_timestamp_snapshot:
             repo.offline_sign_online_roles()
             git_expect(["add", "metadata"])
-            git_expect(["commit", "-m", "Offline sign (snapshot & timestamp)", "--signoff"])
+            git_expect(
+                ["commit", "-m", "Offline sign (snapshot & timestamp)", "--signoff"]
+            )
 
         if change_status or offline_sign_timestamp_snapshot:
             if push:
