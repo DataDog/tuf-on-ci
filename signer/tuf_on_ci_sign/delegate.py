@@ -54,7 +54,7 @@ def _get_offline_input(
 ) -> tuple[OfflineConfig, Key | None]:
     config = copy.deepcopy(config)
     click.echo(f"\nConfiguring role {role}")
-    username_re = re.compile("^\\@[0-9a-zA-Z\\-]+$")
+    username_re = re.compile("^\\@[0-9a-zA-Z\\-\\_]+$")
 
     def verify_signers(response: str) -> list[str]:
         # The list is presented in brackets [], if users tries to
